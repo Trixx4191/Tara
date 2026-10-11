@@ -60,6 +60,9 @@ offense:
   interval: 10.0
   discover: true                # autonomously probe for new vulns each cycle
   flag_file: null               # append captured flags here; null = stdout
+  auto_submit: false            # false = queue captured flags for operator review
+                                # before submitting (recommended). true = submit
+                                # automatically (only if you trust accuracy fully).
 
 # operator GUI — loopback-only web console. Enable with --ui or here.
 ui:

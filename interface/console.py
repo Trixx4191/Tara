@@ -48,9 +48,23 @@ class Console:
             "findings": self.findings(limit=50),
             "mitigations": self.mitigations(),
             "flags": self.flags(),
+            "review": self.review(),
             "tasks": self.task_list(),
             "chat": self.chat(),
         }
+
+    def review(self) -> dict:
+        """Flags captured by offense/defense awaiting the operator's decision."""
+        off = self.orch._subs.get("offense")
+        if off is not None:
+            pending = off.pending_flags()
+            auto = getattr(off, "auto_submit", False)
+        else:
+            # offense not configured this session: read any persisted pending items
+            data = self.ctx.state.load("pending_flags")
+            pending = [v for v in data.values() if v.get("status") == "pending"]
+            auto = False
+        return {"pending": pending, "auto_submit": auto}
 
     def chat(self) -> dict:
         with self._lock:
@@ -97,9 +111,11 @@ class Console:
 
     def options(self) -> dict:
         defense = self.orch._subs.get("defense")
+        offense = self.orch._subs.get("offense")
         return {
             "flag_format": self.ctx.config.get("flag_format"),
             "auto_mitigate": bool(getattr(defense, "auto_mitigate", False)) if defense else False,
+            "auto_submit": bool(getattr(offense, "auto_submit", False)) if offense else False,
             "dry_run": self.ctx.scope.dry_run,
         }
 
@@ -149,6 +165,9 @@ class Console:
             if action == "run_task":          return self._run_task(p.get("task", ""))
             if action == "chat_send":         return self._chat_send(p.get("message", ""))
             if action == "chat_clear":        return self._chat_clear()
+            if action == "approve_flag":      return self._review_action("approve_flag", p.get("id"))
+            if action == "reject_flag":       return self._review_action("reject_flag", p.get("id"))
+            if action == "approve_all_flags": return self._review_action("approve_all_flags", None)
             return {"ok": False, "error": f"unknown action {action!r}"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -278,6 +297,10 @@ class Console:
             d = self.orch._subs.get("defense")
             if d:
                 d.auto_mitigate = bool(p["auto_mitigate"]); changed["auto_mitigate"] = d.auto_mitigate
+        if "auto_submit" in p:
+            o = self.orch._subs.get("offense")
+            if o:
+                o.auto_submit = bool(p["auto_submit"]); changed["auto_submit"] = o.auto_submit
         if "flag_format" in p:
             fmt = p["flag_format"]
             self.ctx.config["flag_format"] = fmt
@@ -326,6 +349,18 @@ class Console:
             out, status = f"error: {e}", "error"
         with self._lock:
             self._tasks[tid].update(status=status, output=out[:4000], finished=time.time())
+
+    # --- flag review (human-in-the-loop submission) -------------------------
+
+    def _review_action(self, method: str, fid) -> dict:
+        off = self.orch._subs.get("offense")
+        if off is None:
+            return {"ok": False, "error": "offense not configured this session"}
+        if method == "approve_all_flags":
+            return off.approve_all_flags()
+        if not fid:
+            return {"ok": False, "error": "flag id required"}
+        return getattr(off, method)(fid)
 
     # --- chat: a live conversation with the agent ---------------------------
 

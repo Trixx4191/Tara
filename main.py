@@ -121,6 +121,7 @@ def build_offense(ctx, cfg):
     return OffenseSubsystem(
         ctx, sink, interval=ocfg.get("interval", 10.0), solvers=solvers,
         flag_format=cfg.get("flag_format"), discover=ocfg.get("discover", True),
+        auto_submit=ocfg.get("auto_submit", False),   # default: operator reviews flags first
     )
 
 

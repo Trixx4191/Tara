@@ -27,9 +27,13 @@ log = logging.getLogger("ctf.replay")
 
 
 class ReplayEngine:
-    def __init__(self, ctx, flag_sink, solver_registry, target_provider, flag_format: str | None = None):
+    def __init__(self, ctx, submit, solver_registry, target_provider, flag_format: str | None = None):
+        """`submit(flag, source, meta) -> status_str` decides what happens to a
+        captured flag: queue it for operator review (default) or submit it. The
+        engine never talks to the sink directly, so the human-in-the-loop choice
+        lives in one place."""
         self.ctx = ctx
-        self.sink = flag_sink
+        self.submit = submit
         self.solvers = solver_registry
         self.targets = target_provider
         self.flag_re = re.compile(flag_format) if flag_format else None
@@ -48,7 +52,7 @@ class ReplayEngine:
             cands = self.solvers.for_category(exploit.category) or self.solvers.for_service(svc)
             solver = cands[0] if cands else None
 
-        total_flags = 0
+        queued = 0        # flags handed to submit() (queued for review or submitted)
         hit_targets = 0
         for t in tlist:
             res = (solver.replay(self.ctx, exploit, t) if solver
@@ -56,14 +60,14 @@ class ReplayEngine:
             if res.flags:
                 hit_targets += 1
             for flag in res.flags:
-                sub = self.sink.offer(flag, source=f"{exploit.service}@{t.host}",
-                                      meta={"exploit": exploit.id, "team": t.team})
-                if sub.status in ("accepted",):
-                    total_flags += 1
+                status = self.submit(flag, f"{exploit.service}@{t.host}",
+                                     {"exploit": exploit.id, "team": t.team})
+                if status in ("accepted", "pending"):
+                    queued += 1
         log.info("exploit %s fired at %d targets, %d flags from %d",
-                 exploit.id, len(tlist), total_flags, hit_targets)
-        return {"ok": total_flags > 0, "targets": len(tlist),
-                "hit": hit_targets, "flags": total_flags}
+                 exploit.id, len(tlist), queued, hit_targets)
+        return {"ok": queued > 0, "targets": len(tlist),
+                "hit": hit_targets, "flags": queued}
 
     def harvest(self, exploit: Exploit, response_text: str) -> list[str]:
         """Pull flag-formatted tokens from a response (used by solvers too)."""

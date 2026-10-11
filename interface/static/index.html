@@ -92,6 +92,12 @@
   .tgt-group{margin-bottom:10px}
   .tgt-group .gl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px}
   /* tasks */
+  .rev{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+  .rev:first-child{border-top:none}
+  .rev .flag{font-weight:600;font-size:13px;word-break:break-all}
+  .rev .src{font-size:11px;color:var(--muted);margin-top:3px}
+  .rev .btns{margin-left:auto;display:flex;gap:7px;flex:none}
+  .rev .btns .ap{border-color:var(--ink)}
   .chat{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:2px 0 4px}
   .msg{max-width:84%;padding:9px 13px;border-radius:14px;font-size:12px;white-space:pre-wrap;line-height:1.5;word-break:break-word}
   .msg.user{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:5px}
@@ -123,6 +129,19 @@
       <div class="stat"><div class="n" id="f-total">0</div><div class="k">CAPTURED</div></div>
       <div class="stat"><div class="n" id="f-sub">0</div><div class="k">SUBMITTED</div></div>
       <div class="stat"><div class="n" id="f-acc">0</div><div class="k">ACCEPTED</div></div>
+    </div>
+  </section>
+
+  <!-- REVIEW: captured flags wait for operator approval before submission -->
+  <section class="card">
+    <h2>Review — flag submissions<span class="meta" id="rev-meta"></span></h2>
+    <div class="body">
+      <div class="frm" style="justify-content:space-between;margin-bottom:8px">
+        <span class="hint" style="margin:0">Captured flags (offense + defense) wait here for your approval before anything is submitted.</span>
+        <button class="solid" id="rev-all">approve all</button>
+      </div>
+      <div id="review"></div>
+      <div class="empty" id="rev-empty">No flags waiting for review.</div>
     </div>
   </section>
 
@@ -202,6 +221,7 @@
       <div class="body">
         <div class="opt"><span class="ol">Dry-run <span class="hint" style="margin:0">check scope, run nothing</span></span><button id="opt-dry">off</button></div>
         <div class="opt"><span class="ol">Auto-mitigate <span class="hint" style="margin:0">block on confident hits</span></span><button id="opt-mit">off</button></div>
+        <div class="opt"><span class="ol">Auto-submit flags <span class="hint" style="margin:0">skip review, submit directly</span></span><button id="opt-sub">off</button></div>
         <div class="frm" style="margin-top:4px">
           <input class="grow" id="opt-flag" placeholder="flag format regex" aria-label="flag format">
           <button class="solid" id="opt-flag-set">set</button>
@@ -274,12 +294,21 @@ function render(d){
   d.mitigations.forEach(m=>{mt.insertAdjacentHTML("beforeend",`<div class="row2"><span class="k">${esc(m.kind)}</span><span class="v">${esc(m.pattern)}</span><button data-rule="${esc(m.rule_id)}">drop</button></div>`);});
   $("mit-meta").textContent=d.mitigations.length?d.mitigations.length+" active":"";
 
+  // review queue
+  const rv=$("review");rv.innerHTML="";const pend=(d.review&&d.review.pending)||[];
+  $("rev-empty").hidden=pend.length>0;
+  $("rev-meta").textContent=pend.length?pend.length+" pending":((d.review&&d.review.auto_submit)?"auto-submit on":"");
+  $("rev-all").style.display=pend.length>1?"":"none";
+  pend.forEach(f=>{const team=(f.meta&&f.meta.team)?"  ·  team "+esc(f.meta.team):"";
+    rv.insertAdjacentHTML("beforeend",`<div class="rev"><div style="min-width:0"><div class="flag">${esc(f.flag)}</div><div class="src">${esc(f.source)}${team}</div></div><div class="btns"><button class="ap solid" data-approve="${esc(f.id)}">approve</button><button data-reject="${esc(f.id)}">reject</button></div></div>`);});
+
   // chat
   renderChat(d.chat||{messages:[],busy:false});
 
   // settings
   $("opt-dry").textContent=d.options.dry_run?"on":"off";$("opt-dry").className=d.options.dry_run?"on":"";
   $("opt-mit").textContent=d.options.auto_mitigate?"on":"off";$("opt-mit").className=d.options.auto_mitigate?"on":"";
+  $("opt-sub").textContent=d.options.auto_submit?"on":"off";$("opt-sub").className=d.options.auto_submit?"on":"";
   if(document.activeElement!==$("opt-flag"))$("opt-flag").value=d.options.flag_format||"";
 }
 
@@ -319,11 +348,15 @@ document.addEventListener("click",async e=>{
   const rule=t.getAttribute("data-rule"); if(rule)return void ctl("drop_rule",{rule_id:rule});
   const rmsvc=t.getAttribute("data-rmsvc"); if(rmsvc)return void ctl("remove_service",{name:rmsvc});
   const rmtgt=t.getAttribute("data-rmtgt"); if(rmtgt){const [service,host]=rmtgt.split("|");return void ctl("remove_target",{service,host});}
+  const apf=t.getAttribute("data-approve"); if(apf)return void ctl("approve_flag",{id:apf});
+  const rjf=t.getAttribute("data-reject"); if(rjf)return void ctl("reject_flag",{id:rjf});
+  if(t.id==="rev-all")return void ctl("approve_all_flags");
   if(t.id==="t-add")return void ctl("add_target",{service:$("t-svc").value,host:$("t-host").value,port:$("t-port").value}).then(()=>{$("t-host").value="";$("t-port").value="";});
   if(t.id==="s-add")return void ctl("add_service",{name:$("s-name").value,host:$("s-host").value,port:$("s-port").value,proto:$("s-proto").value}).then(()=>{$("s-name").value="";$("s-host").value="";$("s-port").value="";});
   if(t.id==="sc-add")return void ctl("scope_add",{kind:$("sc-kind").value,value:$("sc-val").value}).then(()=>{$("sc-val").value="";});
   if(t.id==="opt-dry")return void ctl("set_option",{dry_run:!(LAST.options&&LAST.options.dry_run)});
   if(t.id==="opt-mit")return void ctl("set_option",{auto_mitigate:!(LAST.options&&LAST.options.auto_mitigate)});
+  if(t.id==="opt-sub")return void ctl("set_option",{auto_submit:!(LAST.options&&LAST.options.auto_submit)});
   if(t.id==="opt-flag-set")return void ctl("set_option",{flag_format:$("opt-flag").value});
   if(t.id==="chat-send")return void sendChat();
   if(t.id==="chat-clear")return void ctl("chat_clear");

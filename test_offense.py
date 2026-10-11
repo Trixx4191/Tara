@@ -122,7 +122,8 @@ def test_replay_engine_fires_and_submits():
         ctx = _ctx(port)
         reg = SolverRegistry(); reg.register(WebSolver(flag_format=FLAG_FMT))
         sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
-        engine = ReplayEngine(ctx, sink, reg, TargetProvider(ctx), flag_format=FLAG_FMT)
+        submit = lambda f, s, m: sink.offer(f, source=s, meta=m).status
+        engine = ReplayEngine(ctx, submit, reg, TargetProvider(ctx), flag_format=FLAG_FMT)
         exploit = Exploit(id="x1", category="web", service="web",
                           spec={"method": "GET", "path": "/flag"})
         result = engine.fire(exploit)
@@ -137,7 +138,8 @@ def test_raw_replay_via_tcp():
         ctx = _ctx(port)
         reg = SolverRegistry()      # no solver -> engine uses raw tcp replay
         sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
-        engine = ReplayEngine(ctx, sink, reg, TargetProvider(ctx), flag_format=FLAG_FMT)
+        submit = lambda f, s, m: sink.offer(f, source=s, meta=m).status
+        engine = ReplayEngine(ctx, submit, reg, TargetProvider(ctx), flag_format=FLAG_FMT)
         raw = b"GET /flag HTTP/1.0\r\nHost: x\r\n\r\n"
         exploit = Exploit(id="x2", category="misc", service="web", request=raw)
         result = engine.fire(exploit)
@@ -164,11 +166,79 @@ def test_offense_consumes_exploit_observed():
             "request": b"GET /flag HTTP/1.0\r\nHost: x\r\n\r\n",
             "severity": "high",
         }, source="defense")
-        off.tick()     # drains queue, fires, submits
-        assert off._submitted == 1
-        assert caught and caught[0].payload["count"] == 1
+        off.tick()     # drains queue, fires -> flag goes to REVIEW (default)
+        # default is human-in-the-loop: nothing submitted, one flag pending
+        assert off.review.pending(), "captured flag should be queued for review, not auto-submitted"
+        assert off.review.pending()[0]["flag"] == FLAG
+        assert caught and caught[0].payload["review"] is True
     finally:
         srv.shutdown()
+
+
+def test_offense_auto_submit_opt_in():
+    srv, port = _server()
+    try:
+        ctx = _ctx(port)
+        reg = SolverRegistry(); reg.register(WebSolver(flag_format=FLAG_FMT))
+        sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
+        off = OffenseSubsystem(ctx, sink, solvers=reg, flag_format=FLAG_FMT,
+                               discover=False, auto_submit=True)
+        off.setup()
+        ctx.bus.publish(EXPLOIT_OBSERVED, {"rule": "sqli", "service": "web", "category": "web",
+            "request": b"GET /flag HTTP/1.0\r\nHost: x\r\n\r\n", "severity": "high"}, source="defense")
+        off.tick()
+        # with auto_submit on, it submits directly and nothing waits for review
+        assert off.review.pending() == []
+        assert off.review.counts().get("submitted", 0) == 0  # submitted via sink, not queue
+    finally:
+        srv.shutdown()
+
+
+# --- review queue: approve / reject -----------------------------------------
+
+def test_review_approve_submits():
+    ctx = _ctx(9000)
+    from offense.review import ReviewQueue
+    sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
+    q = ReviewQueue(sink, ctx.state, FLAG_FMT)
+    assert q.enqueue(FLAG, source="web@10.0.0.1") == "pending"
+    assert len(q.pending()) == 1
+    fid = q.pending()[0]["id"]
+    res = q.approve(fid)
+    assert res["ok"] and res["status"] == "submitted"
+    assert q.pending() == []                        # no longer pending
+    assert q.counts()["submitted"] == 1
+
+def test_review_reject_does_not_submit():
+    ctx = _ctx(9000)
+    sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
+    from offense.review import ReviewQueue
+    q = ReviewQueue(sink, ctx.state, FLAG_FMT)
+    q.enqueue(FLAG, source="x")
+    fid = q.pending()[0]["id"]
+    assert q.reject(fid)["ok"]
+    assert q.pending() == [] and q.counts()["rejected"] == 1
+    # the flag was never recorded as submitted
+    assert ctx.state.load("flags").get("items", {}) == {}
+
+def test_review_rejects_invalid_and_duplicate():
+    ctx = _ctx(9000)
+    sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
+    from offense.review import ReviewQueue
+    q = ReviewQueue(sink, ctx.state, FLAG_FMT)
+    assert q.enqueue("not a flag", source="x") == "invalid"
+    assert q.enqueue(FLAG, source="x") == "pending"
+    assert q.enqueue(FLAG, source="x") == "duplicate"
+
+def test_review_approve_all():
+    ctx = _ctx(9000)
+    sink = StdoutSink(state=ctx.state, flag_format=FLAG_FMT)
+    from offense.review import ReviewQueue
+    q = ReviewQueue(sink, ctx.state, FLAG_FMT)
+    for v in ["CTF{aaaa1111}", "CTF{bbbb2222}", "CTF{cccc3333}"]:
+        q.enqueue(v, source="x")
+    r = q.approve_all()
+    assert r["approved"] == 3 and q.pending() == []
 
 
 # --- offense subsystem: standalone discovery --------------------------------
@@ -182,9 +252,9 @@ def test_offense_standalone_discovery():
         off = OffenseSubsystem(ctx, sink, solvers=reg, flag_format=FLAG_FMT,
                                discover=True, discover_every=1)
         off.setup()
-        off.tick()     # tick 1: discover -> enqueue
-        off.tick()     # tick 2: drain -> fire -> submit
-        assert off._submitted >= 1, "standalone discovery should find and submit a flag"
+        off.tick()     # tick 1: discover -> enqueue exploit
+        off.tick()     # tick 2: drain -> fire -> flag to review
+        assert off.review.pending(), "standalone discovery should queue a flag for review"
     finally:
         srv.shutdown()
 

@@ -239,6 +239,33 @@ def test_chat_clear():
     assert c.control("chat_clear")["ok"]
     assert c.chat()["messages"] == [] and c._chat_agent is None
 
+def test_review_flow_through_console():
+    from offense.offense import OffenseSubsystem
+    from offense.flagsink import StdoutSink
+    ctx = _ctx()
+    sink = StdoutSink(state=ctx.state, flag_format=r"CTF\{[0-9a-f]+\}")
+    off = OffenseSubsystem(ctx, sink, flag_format=r"CTF\{[0-9a-f]+\}", discover=False)
+    orch = Orchestrator(ctx); orch.add(off)
+    c = Console(ctx, orch)
+    # a flag gets captured and queued for review
+    off.review.enqueue("CTF{deadbeef}", source="web@10.60.1.2")
+    snap = c.snapshot()
+    assert len(snap["review"]["pending"]) == 1 and snap["review"]["auto_submit"] is False
+    fid = snap["review"]["pending"][0]["id"]
+    # operator rejects -> not submitted
+    assert c.control("reject_flag", {"id": fid})["ok"]
+    assert c.snapshot()["review"]["pending"] == []
+    # another one, approved -> submitted
+    off.review.enqueue("CTF{abcd1234}", source="web@10.60.1.3")
+    fid2 = c.snapshot()["review"]["pending"][0]["id"]
+    r = c.control("approve_flag", {"id": fid2})
+    assert r["ok"] and r["status"] == "submitted"
+
+def test_review_action_without_offense():
+    ctx = _ctx()
+    c = Console(ctx, _orch_with_defense(ctx))   # no offense
+    assert c.control("approve_flag", {"id": "f1"})["ok"] is False
+
 def test_control_drop_rule():
     ctx = _ctx()
     bl = BlocklistEnforcer()
