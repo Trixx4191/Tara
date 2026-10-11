@@ -1,0 +1,83 @@
+# Tara research-lab configuration
+#
+# This is a lab-specific variant of the default policy. It keeps the project's
+# deny-by-default safety model active, but narrows the scope to a dedicated
+# research subnet so Tara can be evaluated in a controlled environment.
+#
+# IMPORTANT:
+# - Keep this file isolated to a dedicated lab network.
+# - Do not point it at public or production targets.
+# - Restore the default config after the research run.
+
+# If true, the agent checks scope and logs intended actions without executing them.
+# Keep this false in a real research run unless you want a dry-run baseline.
+dry_run: false
+
+scope:
+  # Replace these with your actual lab values. Keep the space small and explicit.
+  allowed_hosts: []
+  allowed_cidrs:
+    - "10.50.0.0/16"
+  allowed_ports:
+    - 80
+    - 443
+    - 9000
+    - 8080
+  allowed_paths:
+    - "./state"
+    - "./challenges"
+  block_special: false
+  resolve_check: false
+  enforce_egress: false
+  control_hosts: []
+  allowed_onions: []
+
+# Tor transport is left off by default to avoid accidental onion egress.
+tor:
+  enabled: true
+  socks_host: 127.0.0.1
+  socks_port: 9050
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5
+  api_key_env: ANTHROPIC_API_KEY
+  # Example local model endpoint:
+  # base_url: http://localhost:11434/v1
+
+agent:
+  autonomy: auto
+  max_iters: 25
+
+flag_format: 'FLAG\{[A-Za-z0-9_]+\}'
+
+services: []
+  # Example:
+  # - {name: web, host: 10.50.0.10, port: 9000, proto: http, health_path: /, checker: "./check.sh", source_dir: ./challenges/web}
+
+# Research targets are still checked against the same scope policy.
+targets: {}
+  # web:
+  #   cidr: 10.50.0.0/24
+  #   port: 9000
+  #   skip: ["10.50.0.1"]
+
+# Keep these restricted and operator-reviewed.
+defense:
+  interval: 5.0
+  auto_mitigate: false
+  checker_allowlist: []
+
+offense:
+  interval: 10.0
+  discover: true
+  flag_file: null
+  auto_submit: false
+
+ui:
+  enabled: true
+  host: 127.0.0.1
+  port: 8787
+  token: null
+
+state_dir: ./state
