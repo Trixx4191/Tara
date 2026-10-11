@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tara — console</title>
+<style>
+  @font-face{font-family:'Plex';src:url('/static/fonts/plex-mono-400.woff2') format('woff2');font-weight:400;font-display:swap}
+  @font-face{font-family:'Plex';src:url('/static/fonts/plex-mono-500.woff2') format('woff2');font-weight:500;font-display:swap}
+  @font-face{font-family:'Plex';src:url('/static/fonts/plex-mono-600.woff2') format('woff2');font-weight:600;font-display:swap}
+  @font-face{font-family:'Plex';src:url('/static/fonts/plex-mono-700.woff2') format('woff2');font-weight:700;font-display:swap}
+  :root{
+    --bg:#f7f7f6;--card:#fff;--ink:#15150f;--muted:#9a9a93;--faint:#c9c9c2;
+    --line:#ededea;--fill:#f3f3f1;
+    --s-crit:#15150f;--s-high:#55554e;--s-med:#9a9a93;--s-low:#c9c9c2;
+    --radius:16px;--radius-sm:11px;
+    --mono:'Plex',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{margin:0;font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 28px 12px}
+  .brand{display:flex;align-items:baseline;gap:9px}
+  .brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.5px}
+  .brand .fa{color:var(--faint);font-size:14px}.ver{color:var(--muted);font-size:11px}
+  .tag{font-size:10px;padding:3px 10px;border-radius:999px;background:var(--fill);color:var(--muted);letter-spacing:.5px}
+  .tag.dry{background:var(--ink);color:#fff}
+  .spacer{flex:1}
+  .sub{display:flex;align-items:center;gap:7px}
+  .sub .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .sub.run .dot{background:var(--ink)}
+  .sub .lbl{font-size:12px;color:var(--muted)}.sub.run .lbl{color:var(--ink)}
+  .sub .cnt{font-size:10px;color:var(--faint);min-width:26px}
+  button{font-family:var(--mono);font-size:11px;color:var(--ink);cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  button:hover{background:var(--fill)}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  button.solid{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.solid:hover{opacity:.85;background:var(--ink)}
+  button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  main{max-width:1080px;margin:0 auto;padding:4px 28px 48px}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px}
+  h2{margin:0;font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--muted);padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center}
+  h2 .meta{font-weight:400;color:var(--faint)}
+  .body{padding:16px 22px 22px}
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
+  .grid>.card{margin-bottom:0}
+  .col-7{grid-column:span 7}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-12{grid-column:span 12}
+  @media(max-width:820px){.grid{grid-template-columns:repeat(6,1fr)}.col-7,.col-5,.col-6{grid-column:span 6}}
+  /* flags */
+  .tally{display:flex;gap:10px;padding:8px 10px 20px}
+  .stat{flex:1;text-align:center;padding:14px 6px}.stat+.stat{border-left:1px solid var(--line)}
+  .stat .n{font-size:38px;font-weight:600;line-height:1;letter-spacing:-1px}
+  .stat .k{font-size:10px;color:var(--muted);letter-spacing:2px;margin-top:10px}
+  /* forms */
+  input,select,textarea{font-family:var(--mono);font-size:12px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);color:var(--ink);width:100%}
+  input:focus,select,textarea:focus{outline:none;border-color:var(--muted)}
+  textarea{resize:vertical;min-height:62px;line-height:1.5}
+  .frm{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .frm .grow{flex:1;min-width:120px}.frm .w90{width:90px;flex:none}.frm .w120{width:130px;flex:none}
+  .hint{color:var(--faint);font-size:11px;margin:-6px 0 12px}
+  /* lists */
+  .svcgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+  .svc{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px}
+  .svc .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .svc .nm{font-weight:600}
+  .svc .addr{font-size:11px;color:var(--muted);margin-top:5px}
+  .svc .x{font-size:14px;color:var(--faint);cursor:pointer;border:none;background:none;padding:0 2px}
+  .svc .x:hover{color:var(--ink)}
+  .pill{font-size:9px;padding:2px 9px;border-radius:999px;letter-spacing:1px;flex:none;border:1px solid var(--line);color:var(--muted)}
+  .pill.down{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .svc.down{border-color:var(--ink)}.svc.down .nm{font-weight:700}
+  .svc.down{animation:breathe 2s ease-in-out infinite}
+  @keyframes breathe{0%,100%{border-color:var(--ink)}50%{border-color:var(--faint)}}
+  @media(prefers-reduced-motion:reduce){.svc.down{animation:none}}
+  .row2{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+  .row2:first-child{border-top:none}
+  .row2 .k{font-size:9px;color:var(--muted);letter-spacing:1px;width:54px;flex:none}
+  .row2 .v{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--fill);border-radius:999px;padding:4px 11px;margin:0 6px 6px 0}
+  .chip .x{cursor:pointer;color:var(--muted)}.chip .x:hover{color:var(--ink)}
+  .chip.out{outline:1px solid var(--ink);outline-offset:-1px}
+  /* findings */
+  .feed{max-height:380px;overflow:auto;margin:0 -22px}
+  .fitem{display:flex;gap:13px;align-items:center;padding:12px 22px;border-top:1px solid var(--line)}
+  .fitem:first-child{border-top:none}
+  .sdot{width:9px;height:9px;border-radius:50%;flex:none}
+  .sdot.critical{background:var(--s-crit)}.sdot.high{background:var(--s-high)}
+  .sdot.medium{background:var(--s-med)}.sdot.low{background:var(--s-low)}
+  .fmain{flex:1;min-width:0}.fmain .rule{font-weight:600}.fmain .why{color:var(--muted);font-size:12px}
+  .fmark{font-size:10px;color:var(--faint);letter-spacing:1px;flex:none}.fmark.confirmed{color:var(--ink)}
+  .tgt-group{margin-bottom:10px}
+  .tgt-group .gl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px}
+  /* tasks */
+  .chat{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:2px 0 4px}
+  .msg{max-width:84%;padding:9px 13px;border-radius:14px;font-size:12px;white-space:pre-wrap;line-height:1.5;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:5px}
+  .msg.assistant{align-self:flex-start;background:var(--fill);color:var(--ink);border-bottom-left-radius:5px}
+  .thinking{align-self:flex-start;color:var(--muted);font-size:11px;padding:2px 2px}
+  .chat-empty{color:var(--faint);font-size:12px;text-align:center;padding:26px 0}
+  .opt{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .opt .ol{flex:1;font-size:12px}
+  .empty{color:var(--faint);font-size:12px;padding:14px 0;text-align:center}
+  .flash{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:12px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:80vw}
+  .flash.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1>Tara</h1><span class="fa" dir="rtl">تارا</span><span class="ver" id="ver">v—</span></div>
+  <span class="tag" id="mode">live</span><span class="tag dry" id="dry" hidden>dry-run</span>
+  <div class="spacer"></div>
+  <div class="sub" id="sub-defense"><span class="dot"></span><span class="lbl">defense</span><span class="cnt" id="cnt-defense"></span>
+    <button data-act="start_defense">start</button><button data-act="stop_defense">stop</button></div>
+  <div class="sub" id="sub-offense"><span class="dot"></span><span class="lbl">offense</span><span class="cnt" id="cnt-offense"></span>
+    <button data-act="start_offense">start</button><button data-act="stop_offense">stop</button></div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Flags<span class="meta" id="flag-meta"></span></h2>
+    <div class="tally">
+      <div class="stat"><div class="n" id="f-total">0</div><div class="k">CAPTURED</div></div>
+      <div class="stat"><div class="n" id="f-sub">0</div><div class="k">SUBMITTED</div></div>
+      <div class="stat"><div class="n" id="f-acc">0</div><div class="k">ACCEPTED</div></div>
+    </div>
+  </section>
+
+  <!-- TARGETS: give a target from the UI -->
+  <section class="card">
+    <h2>Targets<span class="meta" id="tgt-meta"></span></h2>
+    <div class="body">
+      <div class="frm">
+        <input class="w120" id="t-svc" list="svc-names" placeholder="service" aria-label="service">
+        <input class="grow" id="t-host" placeholder="host / ip / .onion" aria-label="target host">
+        <input class="w90" id="t-port" placeholder="port" inputmode="numeric" aria-label="target port">
+        <button class="solid" id="t-add">add target</button>
+      </div>
+      <datalist id="svc-names"></datalist>
+      <div class="hint">Targets you add are attacked across the field. Out-of-scope hosts are kept but skipped until added to scope below.</div>
+      <div id="targets"></div>
+      <div class="empty" id="tgt-empty">No targets yet.</div>
+    </div>
+  </section>
+
+  <div class="grid" style="margin-bottom:18px">
+    <section class="card col-7">
+      <h2>Services<span class="meta" id="svc-meta"></span></h2>
+      <div class="body">
+        <div class="frm">
+          <input class="w120" id="s-name" placeholder="name" aria-label="service name">
+          <input class="grow" id="s-host" placeholder="host / ip" aria-label="service host">
+          <input class="w90" id="s-port" placeholder="port" inputmode="numeric" aria-label="service port">
+          <select class="w90" id="s-proto" aria-label="protocol"><option>tcp</option><option>http</option></select>
+          <button class="solid" id="s-add">add</button>
+        </div>
+        <div class="svcgrid" id="services"></div>
+        <div class="empty" id="svc-empty" hidden>No services configured.</div>
+      </div>
+    </section>
+
+    <section class="card col-5">
+      <h2>Scope<span class="meta" id="scope-meta"></span></h2>
+      <div class="body">
+        <div class="frm">
+          <select class="w90" id="sc-kind" aria-label="scope kind"><option value="cidr">cidr</option><option value="host">host</option><option value="onion">onion</option><option value="port">port</option></select>
+          <input class="grow" id="sc-val" placeholder="10.60.0.0/16" aria-label="scope value">
+          <button class="solid" id="sc-add">add</button>
+        </div>
+        <div id="scope"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid" style="margin-bottom:18px">
+    <section class="card col-7">
+      <h2>Findings<span class="meta" id="find-meta"></span></h2>
+      <div class="body"><div class="feed" id="findings"></div>
+        <div class="empty" id="find-empty">Nothing detected yet.</div></div>
+    </section>
+    <section class="card col-5">
+      <h2>Mitigations<span class="meta" id="mit-meta"></span></h2>
+      <div class="body"><div id="mitigations"></div>
+        <div class="empty" id="mit-empty">No block rules in place.</div></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card col-7">
+      <h2>Chat<span class="meta" id="chat-meta"></span></h2>
+      <div class="body">
+        <div class="chat" id="chat"></div>
+        <div class="chat-empty" id="chat-empty">Talk to Tara — direct it, ask what it's seeing, have it probe or patch a scoped target. Works whether idle or running.</div>
+        <div class="frm" style="margin-top:12px;margin-bottom:8px"><textarea id="chat-in" placeholder="message Tara…  (Enter to send, Shift+Enter for newline)"></textarea></div>
+        <div class="frm" style="justify-content:space-between;margin-bottom:0">
+          <button id="chat-clear">clear</button><button class="solid" id="chat-send">send</button>
+        </div>
+      </div>
+    </section>
+    <section class="card col-5">
+      <h2>Settings<span class="meta"></span></h2>
+      <div class="body">
+        <div class="opt"><span class="ol">Dry-run <span class="hint" style="margin:0">check scope, run nothing</span></span><button id="opt-dry">off</button></div>
+        <div class="opt"><span class="ol">Auto-mitigate <span class="hint" style="margin:0">block on confident hits</span></span><button id="opt-mit">off</button></div>
+        <div class="frm" style="margin-top:4px">
+          <input class="grow" id="opt-flag" placeholder="flag format regex" aria-label="flag format">
+          <button class="solid" id="opt-flag-set">set</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="flash" id="flash"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let token=localStorage.getItem("tara_token")||"";
+let LAST={};
+async function api(path,opts){opts=opts||{};opts.headers=Object.assign({"X-Tara-Token":token},opts.headers||{});
+  const r=await fetch(path,opts);return r.json();}
+function flash(m){const f=$("flash");f.textContent=m;f.className="flash show";setTimeout(()=>f.className="flash",2400);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+async function ctl(action,params){const r=await api("/api/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,params})});
+  flash(r.ok?(r.note||(action.replace(/_/g," ")+" ok")):("failed: "+(r.error||"?")));tick();return r;}
+
+function renderSub(name,s){const el=$("sub-"+name);el.classList.toggle("run",!!(s&&s.running));
+  $("cnt-"+name).textContent=s?(s.running?s.ticks+"t":"idle")+(s.errors?" "+s.errors+"e":""):"off";}
+
+function render(d){
+  LAST=d;
+  $("ver").textContent="v"+(d.agent.version||"?");
+  $("dry").hidden=!d.options.dry_run;$("mode").hidden=!!d.options.dry_run;
+  const subs={};(d.subsystems||[]).forEach(s=>subs[s.name]=s);
+  renderSub("defense",subs.defense);renderSub("offense",subs.offense);
+  $("f-total").textContent=d.flags.total;$("f-sub").textContent=d.flags.submitted;$("f-acc").textContent=d.flags.accepted;
+  $("flag-meta").textContent=d.flags.total?d.flags.accepted+"/"+d.flags.total+" accepted":"";
+
+  // services + datalist
+  const sv=$("services");sv.innerHTML="";$("svc-empty").hidden=d.services.length>0;let down=0;
+  const dl=$("svc-names");dl.innerHTML="";
+  d.services.forEach(s=>{const cls=s.up===false?"down":"";if(s.up===false)down++;
+    const pill=s.up===true?'<span class="pill">up</span>':s.up===false?'<span class="pill down">down</span>':'<span class="pill">?</span>';
+    sv.insertAdjacentHTML("beforeend",`<div class="svc ${cls}"><div class="row"><span class="nm">${esc(s.name)}</span><span style="display:flex;gap:7px;align-items:center">${pill}<button class="x" data-rmsvc="${esc(s.name)}" title="remove">×</button></span></div><div class="addr">${esc(s.host)}:${esc(s.port)} ${esc(s.proto)}</div></div>`);
+    dl.insertAdjacentHTML("beforeend",`<option value="${esc(s.name)}">`);});
+  $("svc-meta").textContent=d.services.length?(down?down+" down":"all up"):"";
+
+  // targets grouped by service
+  const tg=$("targets");tg.innerHTML="";let tc=0;
+  Object.entries(d.targets||{}).forEach(([svc,list])=>{
+    if(!list.length)return;
+    let chips="";list.forEach(t=>{tc++;
+      if(t.cidr){chips+=`<span class="chip">${esc(t.cidr)}:${esc(t.port)}</span>`;}
+      else{const inScope=isInScope(d.scope,t.host,t.port);
+        chips+=`<span class="chip ${inScope?"":"out"}">${esc(t.host)}:${esc(t.port)}${inScope?"":" ⚠"}<span class="x" data-rmtgt="${esc(svc)}|${esc(t.host)}">×</span></span>`;}});
+    tg.insertAdjacentHTML("beforeend",`<div class="tgt-group"><div class="gl">${esc(svc)}</div>${chips}</div>`);});
+  $("tgt-empty").hidden=tc>0;$("tgt-meta").textContent=tc?tc+" target"+(tc>1?"s":""):"";
+
+  // scope
+  const sc=$("scope");sc.innerHTML="";const S=d.scope;
+  const seg=(k,arr)=>arr.length?`<div class="row2"><span class="k">${k}</span><span class="v">${arr.map(esc).join(", ")}</span></div>`:"";
+  sc.innerHTML=seg("CIDRS",S.cidrs)+seg("HOSTS",S.hosts)+seg("ONIONS",S.onions)+seg("PORTS",S.ports.map(String));
+  if(!S.cidrs.length&&!S.hosts.length&&!S.onions.length)sc.innerHTML='<div class="empty">Empty — everything is denied. Add the game ranges.</div>';
+  $("scope-meta").textContent=(S.cidrs.length+S.hosts.length+S.onions.length)+" entries";
+
+  // findings
+  const fd=$("findings");fd.innerHTML="";$("find-empty").hidden=d.findings.length>0;
+  d.findings.forEach(f=>{const mk=f.confirmed===true?'<span class="fmark confirmed">confirmed</span>':(f.score!=null?`<span class="fmark">${Number(f.score).toFixed(2)}</span>`:"");
+    fd.insertAdjacentHTML("beforeend",`<div class="fitem"><span class="sdot ${esc(f.severity)}"></span><div class="fmain"><div class="rule">${esc(f.rule)}</div><div class="why">${esc(f.reason)}</div></div>${mk}</div>`);});
+  $("find-meta").textContent=d.findings.length?d.findings.length+" shown":"";
+
+  // mitigations
+  const mt=$("mitigations");mt.innerHTML="";$("mit-empty").hidden=d.mitigations.length>0;
+  d.mitigations.forEach(m=>{mt.insertAdjacentHTML("beforeend",`<div class="row2"><span class="k">${esc(m.kind)}</span><span class="v">${esc(m.pattern)}</span><button data-rule="${esc(m.rule_id)}">drop</button></div>`);});
+  $("mit-meta").textContent=d.mitigations.length?d.mitigations.length+" active":"";
+
+  // chat
+  renderChat(d.chat||{messages:[],busy:false});
+
+  // settings
+  $("opt-dry").textContent=d.options.dry_run?"on":"off";$("opt-dry").className=d.options.dry_run?"on":"";
+  $("opt-mit").textContent=d.options.auto_mitigate?"on":"off";$("opt-mit").className=d.options.auto_mitigate?"on":"";
+  if(document.activeElement!==$("opt-flag"))$("opt-flag").value=d.options.flag_format||"";
+}
+
+function renderChat(c){
+  const el=$("chat");const msgs=c.messages||[];
+  $("chat-empty").hidden=msgs.length>0||c.busy;
+  const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<50;
+  el.innerHTML="";
+  msgs.forEach(m=>{el.insertAdjacentHTML("beforeend",`<div class="msg ${m.role==="user"?"user":"assistant"}">${esc(m.content)}</div>`);});
+  if(c.busy)el.insertAdjacentHTML("beforeend",`<div class="thinking">Tara is thinking…</div>`);
+  if(atBottom||c.busy)el.scrollTop=el.scrollHeight;
+  const sb=$("chat-send");sb.disabled=!!c.busy;sb.textContent=c.busy?"…":"send";
+  $("chat-meta").textContent=c.busy?"thinking…":(msgs.length?msgs.length+" msgs":"");
+}
+function sendChat(){const v=$("chat-in").value.trim();if(!v)return;
+  $("chat-in").value="";ctl("chat_send",{message:v});}
+
+function isInScope(S,host,port){
+  if(/\.onion$/i.test(host))return S.onions.includes(host.toLowerCase().split(":")[0]);
+  if(S.hosts.includes(host))return true;
+  const ip=host.split(".").map(Number);
+  if(ip.length===4&&ip.every(n=>n>=0&&n<=255)){
+    for(const c of S.cidrs){if(cidrHas(c,ip))return true;}
+  }
+  return false;
+}
+function cidrHas(cidr,ip){const [net,bitsS]=cidr.split("/");const bits=+bitsS;const n=net.split(".").map(Number);
+  if(n.length!==4)return false;const toInt=a=>((a[0]<<24)|(a[1]<<16)|(a[2]<<8)|a[3])>>>0;
+  const mask=bits===0?0:(0xffffffff<<(32-bits))>>>0;return (toInt(ip)&mask)===(toInt(n)&mask);}
+
+async function tick(){try{const d=await api("/api/snapshot");if(d.error){flash(d.error);return;}render(d);}catch(e){}}
+
+// wiring
+document.addEventListener("click",async e=>{
+  const t=e.target;
+  const act=t.getAttribute("data-act"); if(act)return void ctl(act);
+  const rule=t.getAttribute("data-rule"); if(rule)return void ctl("drop_rule",{rule_id:rule});
+  const rmsvc=t.getAttribute("data-rmsvc"); if(rmsvc)return void ctl("remove_service",{name:rmsvc});
+  const rmtgt=t.getAttribute("data-rmtgt"); if(rmtgt){const [service,host]=rmtgt.split("|");return void ctl("remove_target",{service,host});}
+  if(t.id==="t-add")return void ctl("add_target",{service:$("t-svc").value,host:$("t-host").value,port:$("t-port").value}).then(()=>{$("t-host").value="";$("t-port").value="";});
+  if(t.id==="s-add")return void ctl("add_service",{name:$("s-name").value,host:$("s-host").value,port:$("s-port").value,proto:$("s-proto").value}).then(()=>{$("s-name").value="";$("s-host").value="";$("s-port").value="";});
+  if(t.id==="sc-add")return void ctl("scope_add",{kind:$("sc-kind").value,value:$("sc-val").value}).then(()=>{$("sc-val").value="";});
+  if(t.id==="opt-dry")return void ctl("set_option",{dry_run:!(LAST.options&&LAST.options.dry_run)});
+  if(t.id==="opt-mit")return void ctl("set_option",{auto_mitigate:!(LAST.options&&LAST.options.auto_mitigate)});
+  if(t.id==="opt-flag-set")return void ctl("set_option",{flag_format:$("opt-flag").value});
+  if(t.id==="chat-send")return void sendChat();
+  if(t.id==="chat-clear")return void ctl("chat_clear");
+});
+// Enter sends, Shift+Enter makes a newline
+$("chat-in").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}
+});
+tick();setInterval(tick,2000);
+</script>
+</body>
+</html>

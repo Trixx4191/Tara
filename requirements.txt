@@ -1,0 +1,6 @@
+pyyaml>=6.0
+# one of the following, per your llm.provider choice:
+anthropic>=0.40.0      # provider: anthropic
+openai>=1.40.0         # provider: openai | ollama | vllm | local
+# CTF tooling lands in the next milestone (offense/defense):
+#   pwntools  angr  z3-solver  pyshark  scapy  requests

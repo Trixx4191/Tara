@@ -1,0 +1,61 @@
+# ---- runtime state & secrets (NEVER commit) ----
+# state/ holds captured flags, findings, tool logs — these are secrets.
+state/
+*/state/
+patch_backups/
+*.corrupt
+
+# credentials / local config
+.env
+.env.*
+*.key
+*.pem
+*.p12
+secrets.*
+config/local.yaml
+config/*.local.yaml
+**/credentials*.json
+
+# captured traffic can be huge and sensitive
+*.pcap
+*.pcapng
+captures/
+
+# ---- python ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+
+# ---- node / electron ----
+node_modules/
+electron/node_modules/
+dist/
+out/
+electron/dist/
+*.AppImage
+*.dmg
+*.exe
+*.deb
+
+# ---- challenge binaries & large artifacts ----
+# keep the challenges/ dir but not the (often large) binaries dropped into it
+challenges/*
+!challenges/.gitkeep
+
+# ---- archives & build output (don't push huge files) ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.log
+
+# ---- os cruft ----
+.DS_Store
+Thumbs.db

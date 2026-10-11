@@ -1,0 +1,20 @@
+{
+  "name": "tara-console",
+  "version": "0.4.0",
+  "description": "Tara — attack-defense CTF agent operator console (Electron desktop app)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "dev.tara.console",
+    "productName": "Tara",
+    "files": ["main.js", "package.json"],
+    "extraResources": [{ "from": "..", "to": "app", "filter": ["**/*.py", "interface/**", "config/**", "requirements.txt"] }]
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

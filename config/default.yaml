@@ -1,0 +1,71 @@
+# CTF agent configuration.
+#
+# scope is the important block. Populate it with the competition's own target
+# ranges before a live round. Empty = everything denied (the safe default).
+
+dry_run: false        # true = check scope and log intended actions, run nothing
+
+scope:
+  allowed_hosts: []           # e.g. ["team3.ad.ctf.example", "checker.ctf.example"]
+  allowed_cidrs: []           # e.g. ["10.60.0.0/16"]  (the game network)
+  allowed_ports: []           # empty = any port on an allowed host
+  allowed_paths:              # local roots the agent may read/write
+    - "./state"
+    - "./challenges"
+  block_special: true         # deny cloud-metadata/link-local/CGNAT/multicast
+  resolve_check: true         # resolve names and check resolved IPs (anti-rebind)
+  enforce_egress: true        # install socket-level guard (defense in depth)
+  control_hosts: []           # extra control-plane hosts the agent may reach
+  allowed_onions: []          # explicit .onion challenge addresses (deny-by-default)
+                              # e.g. ["abc...56chars.onion"]
+
+# Tor transport — only for reaching onion-hosted challenges in allowed_onions.
+# Not traffic anonymisation: it cannot route attacks at clearnet targets.
+tor:
+  enabled: false
+  socks_host: 127.0.0.1
+  socks_port: 9050            # Tor daemon default (Tor Browser bundle: 9150)
+
+llm:
+  provider: anthropic          # anthropic | openai | ollama | vllm | local
+  model: claude-sonnet-4-5
+  api_key_env: ANTHROPIC_API_KEY
+  # base_url:  http://localhost:11434/v1   # for ollama/vllm/local
+
+agent:
+  autonomy: auto               # auto | step
+  max_iters: 25
+
+# the competition flag format (regex) — powers flag validation, FLAG_OUT
+# detection, and harvesting. Set this before a round.
+flag_format: 'FLAG\{[A-Za-z0-9_]+\}'
+
+# services you defend (and whose shape you attack on other teams)
+services: []
+  # - {name: web, host: 0.0.0.0, port: 9000, proto: http, health_path: /, checker: "./check.sh", source_dir: ./challenges/web}
+
+# per-service target instances to attack (other teams). scope still applies.
+targets: {}
+  # web:
+  #   cidr: 10.60.0.0/24
+  #   port: 9000
+  #   skip: ["10.60.0.1"]        # the gameserver / your own box
+
+defense:
+  interval: 5.0
+  auto_mitigate: false          # install edge blocks on confident detections
+  checker_allowlist: []         # regexes that identify the SLA checker's traffic
+
+offense:
+  interval: 10.0
+  discover: true                # autonomously probe for new vulns each cycle
+  flag_file: null               # append captured flags here; null = stdout
+
+# operator GUI — loopback-only web console. Enable with --ui or here.
+ui:
+  enabled: false
+  host: 127.0.0.1          # loopback only; the server refuses any other host
+  port: 8787
+  token: null              # set a string to require X-Tara-Token on API calls
+
+state_dir: ./state
